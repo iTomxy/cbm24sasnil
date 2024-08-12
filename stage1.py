@@ -1,4 +1,4 @@
-import argparse, logging, os, os.path as osp, json, time, shutil, itertools, functools, glob, pprint
+import argparse, os, os.path as osp, json, shutil, functools
 from collections import defaultdict
 import numpy as np
 from scipy.optimize import curve_fit
@@ -12,7 +12,7 @@ from data import *
 from util import *
 from modules import *
 from evaluation import *
-from config import init_train_args, TOTALSEG_CLS_SET
+from config import stage1_args, TOTALSEG_CLS_SET
 
 """
 Initial training based on early learning
@@ -73,10 +73,10 @@ def train(args):
     else:
         bin_fn_train = bin_fn_full
 
-    train_trans = weak_trfm(args)
+    train_trans1, train_trans2 = weak_trfm(args)
     val_trans = val_trfm(args)
 
-    train_ds = BoneDataset(train_npzs, train_trans, bin_fn=bin_fn_train,
+    train_ds = BoneDataset(train_npzs, train_trans1, bin_fn=bin_fn_train,
         window=args.window, window_level=args.window_level, window_width=args.window_width)
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=torch.cuda.is_available())
     train_iter = infiter(train_loader)
@@ -146,11 +146,18 @@ def train(args):
     for i_iter in range(start_iter, args.iter):
         batch_data = next(train_iter)
         labels = batch_data["label"].to(device)
-        inputs = batch_data["image"].to(device)
+        inputs = batch_data["image"]#.to(device)
+
+        # pixel transforms
+        if inputs.size(1) > 1:
+            inputs = torch.cat([train_trans2(inputs[:, :1]), inputs[:, 1:]], dim=1)
+        else:
+            inputs = train_trans2(inputs)
+
         labels_oh = one_hot(labels, num_classes=args.n_classes, dim=1)
 
         optimizer.zero_grad()
-        feats, pred_list = model(inputs)
+        feats, pred_list = model(inputs.to(device))
         loss_dice = criterion_dice(pred_list[0], labels_oh)
         loss_focal = criterion_focal(pred_list[0], labels_oh)
         # print(loss_dice.size(), loss_focal.size()) # [bs, c, 1, 1], [bs, c, h, w]
@@ -192,6 +199,7 @@ def train(args):
             "optimizer": optimizer.state_dict(),
         }
         if scheduler is not None:
+            scheduler.step()
             sd["scheduler"] = scheduler.state_dict()
         torch.save(sd, osp.join(args.log_path, f"ckpt-{i_iter}.pth"))
         if args.rm_old_ckpt and (i_iter - 1) % args.val_freq != 0:
@@ -284,7 +292,7 @@ def find_t0(args):
 
 
 if "__main__" == __name__:
-    args = init_train_args()
+    args = stage1_args()
 
     assert args.partial and args.partial != "bone"
     assert args.window

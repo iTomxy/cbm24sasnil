@@ -21,3 +21,5 @@ See [iTomxy/data/totalsegmentator](https://github.com/iTomxy/data/tree/master/to
 - [monai](https://github.com/Project-MONAI/MONAI)
 - [medpy](https://github.com/loli/medpy) >= 0.5.2
 - [nibabel](https://github.com/nipy/nibabel)
+- ~~[invertransforms](https://github.com/gregunz/invertransforms)~~
+- [scikit-image](https://github.com/scikit-image/scikit-image)

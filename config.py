@@ -14,6 +14,9 @@ TOTALSEG_CLS_SET = {
     "pelvic": (25, 77, 78),
 }
 
+# how to aggregate partial label & teacher prediction to form pseudo-label
+AGGREGATE_MODE = ("bbox", "bbox_frac", "polygon", "convex")
+
 
 def pos_int(v):
     """wrapper of int, raise error if `v <= 0`"""
@@ -35,12 +38,33 @@ def base_parser():
     return parser
 
 
-def init_train_args():
-    parser = base_parser()
+def add_common_train_args(parser):
     # data
     parser.add_argument('--data_root', type=str, default=os.path.expanduser("~/sd10t"))
+    # training
+    parser.add_argument('--lr', type=float, default=5e-4)
+    parser.add_argument('--backbone_lr_coef', type=float, default=1, help="can let the backbone update slower than seg heads")
+    parser.add_argument('--iter', type=int, default=100)
+    parser.add_argument('--grad_clip', type=float, default=-1, help=">0 to clip gradient norm")
+    parser.add_argument('-bs', '--batch_size', type=int, default=32)
+    parser.add_argument('--decay_steps', type=int, nargs='+', default=[])
+    parser.add_argument('-r', '--resume', type=str, default="")
+
+    # validation
+    parser.add_argument('--val_freq', type=int, default=1, help="<=0 to disable validation (and visualisation)")
+    parser.add_argument('-v', '--vis', action="store_true", help="visualise prediction on validation")
+
+    # misc
+    parser.add_argument('--debug', action="store_true")
+    parser.add_argument('--rm_old_ckpt', action="store_true", help="rm old epoch-wish ckpt")
+    parser.add_argument('-o', '--log_path', type=str, default="log/{}".format(time.strftime("%Y%m%d-%H%M%S", time.gmtime())))
+
+
+def stage1_args():
+    parser = base_parser()
+    add_common_train_args(parser)
+    # data
     parser.add_argument('-c', '--n_classes', type=int, default=1+1)
-    # parser.add_argument('--n_dummy_classes', type=int, default=0, help="trick from ZhiHu")
     parser.add_argument('--slice_axis', type=int, default=2, help="slicing nii volume")
     parser.add_argument('--image_size', type=int, nargs='+', default=[224])
     parser.add_argument('--simple_resize', action="store_true", help="use torchvision.transforms.Resize instead of my ResizeZoomPad")
@@ -50,42 +74,28 @@ def init_train_args():
     parser.add_argument('-p', '--partial', type=str, default='', choices=list(TOTALSEG_CLS_SET.keys()))
 
     # training
-    parser.add_argument('--lr', type=float, default=5e-4)
-    parser.add_argument('--backbone_lr_coef', type=float, default=1, help="can let the backbone update slower than seg heads")
-    # parser.add_argument('--epoch', type=int, default=100)
-    parser.add_argument('--iter', type=int, default=100)
-    parser.add_argument('--grad_clip', type=float, default=-1, help=">0 to clip gradient norm")
-    # parser.add_argument('--w_full_dice', type=float, default=1)
-    parser.add_argument('-bs', '--batch_size', type=int, default=32)
-    parser.add_argument('--decay_steps', type=int, nargs='+', default=[])
-    parser.add_argument('-r', '--resume', type=str, default="")
-    # parser.add_argument('--train_ts_label', action="store_true", help="train with TotalSegmentator labels (for upper-bound baseline)")
-    # parser.add_argument('--train_full_label', action="store_true", help="train with full labels (for upper-bound baseline)")
-    # parser.add_argument('--strong_aug', action="store_true", help="apply strong augmentation on student's input")
     parser.add_argument('--obviousness', type=int, default=0, help="if >0, only use slice with #bone pixel > this threshold for training")
     parser.add_argument('--topk_focal', type=float, default=-1, help="if >0, only pick this fraction of pixel with least loss for training")
-    # parser.add_argument('--pseudo_agg_mode', type=str, default='bbox', choices=("bbox", "bbox_frac", "polygon", "convex"))
-    # parser.add_argument('--update_teacher', action="store_true")
-    # parser.add_argument('--teacher_weight', type=str, default="")
-    # parser.add_argument('--teacher_update_iter', type=int, default=100)
-    # parser.add_argument('--teacher_update_freq', type=pos_int, default=1)
-    # parser.add_argument('--teacher_momentum', type=float, default=0.99)
 
     # find t0
     parser.add_argument('--t0_metr', type=str, default="iou", choices=("dice", "iou", "sensitivity", "specificity", "accuracy"))
     parser.add_argument('--t0_thres', type=float, default=0.85, help="tau in equation (1)")
 
-    # validation
-    parser.add_argument('--val_freq', type=int, default=1, help="<=0 to disable validation (and visualisation)")
-    parser.add_argument('-v', '--vis', action="store_true", help="visualise prediction on validation")
+    return parser.parse_args()
 
-    # evaluation
-    # parser.add_argument('--eval_mask_modes', type=str, nargs='+', default=['none'], choices=EVAL_MASK_MODES)
 
-    # misc
-    parser.add_argument('--debug', action="store_true")
-    parser.add_argument('--rm_old_ckpt', action="store_true", help="rm old epoch-wish ckpt")
-    parser.add_argument('-o', '--log_path', type=str, default="log/{}".format(time.strftime("%Y%m%d-%H%M%S", time.gmtime())))
+def stage2_args():
+    parser = base_parser()
+    add_common_train_args(parser)
+    # pseudo-label
+    parser.add_argument('--pseudo_agg_mode', type=str, default='bbox', choices=AGGREGATE_MODE)
+
+    # teacher
+    parser.add_argument('--teacher_weight', type=str, default="", help="path to ckeckpoint of teacher from 1st stage")
+    parser.add_argument('--ema', action="store_true", help="update teacher with EMA")
+    parser.add_argument('--ema_start', type=int, default=100, help="start iteration of updating teacher")
+    parser.add_argument('--ema_freq', type=pos_int, default=1, help="frequency of updating teacher")
+    parser.add_argument('--ema_momentum', type=float, default=0.95)
 
     return parser.parse_args()
 

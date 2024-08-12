@@ -1,8 +1,11 @@
+# git+https://github.com/gregunz/invertransforms
 matplotlib
 medpy>=0.5.2
 monai
 nibabel
 opencv-python
+scikit-image
+scipy
 tensorboard
 torch==1.13.1+cu116
 torchvision==0.14.1+cu116

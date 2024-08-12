@@ -11,7 +11,7 @@ import torchvision.transforms as transforms
 from torchvision.transforms import InterpolationMode
 import torchvision.transforms.functional as F
 from util import seed_everything
-from config import TOTALSEG_CLS_SET
+from config import TOTALSEG_CLS_SET, AGGREGATE_MODE
 
 
 def get_bone_data_files(dataset, subset, data_root="~/data"):
@@ -370,6 +370,41 @@ class ResizeZoomPad:
         return image
 
 
+def aggregate_label(label_bp, pred, mode="bbox"):
+    """aggregate given partial label & prediction
+    label_bp: binary partial label, [H, W], in {0, 1}
+    pred: prediction, [H, W], in {0, 1}
+    """
+    assert mode in ("bbox", "bbox_frac", "polygon", "convex")
+    pseudo = (label_bp + pred > 0).astype(np.uint8)
+    if label_bp.sum() < 40:
+        return pseudo
+    if "bbox_frac" == mode:
+        _, lab_cc, _, _ = cv2.connectedComponentsWithStats(label_bp)
+        for c in np.unique(lab_cc):
+            if 0 == c: # background
+                continue
+            supp = np.where(c == lab_cc)
+            u, d = supp[0].min(), supp[0].max()
+            l, r = supp[1].min(), supp[1].max()
+            pseudo[u: d+1, l: r+1] = label_bp[u: d+1, l: r+1]
+    elif "bbox" == mode:
+        supp = np.where(label_bp > 0)
+        u, d = supp[0].min(), supp[0].max()
+        l, r = supp[1].min(), supp[1].max()
+        pseudo[u: d+1, l: r+1] = label_bp[u: d+1, l: r+1]
+    elif "convex" == mode:
+        chull = skimage.morphology.convex_hull_image(label_bp)
+        pseudo[chull] = label_bp[chull]
+    else: # polygon
+        lx, ly = np.where(label_bp > 0)
+        if lx.shape[0] > 0:
+            rr, cc = skimage.draw.polygon(lx, ly)
+            pseudo[rr, cc] = label_bp[rr, cc]
+
+    return pseudo
+
+
 def val_trfm(args):
     """only resize"""
     if args.simple_resize:
@@ -387,35 +422,82 @@ def val_trfm(args):
 
 
 def weak_trfm(args):
+    if len(args.image_size) == 1:
+        args.image_size = args.image_size * 2
+    init_size = [s * 2 for s in args.image_size]
+
     if args.simple_resize:
         _resize_trfm = {
-            "image": transforms.Resize(1024),
-            "label": transforms.Resize(1024, interpolation=InterpolationMode.NEAREST),
+            "image": transforms.Resize(init_size),
+            "label": transforms.Resize(init_size, interpolation=InterpolationMode.NEAREST),
         }
     else:
         _resize_trfm = {
-            "image": ResizeZoomPad(1024),
-            "label": ResizeZoomPad(1024, "nearest"),
+            "image": ResizeZoomPad(init_size),
+            "label": ResizeZoomPad(init_size, "nearest"),
         }
 
-    trfm = MultiCompose([
+    trfm1 = MultiCompose([
         _resize_trfm,
         transforms.RandomCrop(args.image_size),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
         {
-            "image": transforms.RandomAffine(degrees=90, translate=(0.1, 0.1)),
-            "label": transforms.RandomAffine(degrees=90, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
-        },
-        {
-            "image": transforms.RandomChoice([
-                transforms.RandomAdjustSharpness(2),
-                transforms.GaussianBlur((5, 9)),
-            ])
+            "image": transforms.RandomAffine(degrees=45, translate=(0.1, 0.1)),
+            "label": transforms.RandomAffine(degrees=45, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
         },
     ])
 
-    return trfm
+    # pixel transforms for image (asserts image #channels in {1, 3})
+    trfm2 = transforms.RandomChoice([
+        transforms.RandomAdjustSharpness(2),
+        transforms.GaussianBlur((5, 9)),
+    ])
+
+    return trfm1, trfm2
+
+
+def weak_trfm2(args):
+    """separate some transforms that should be inverted"""
+    # common transforms for image & label
+    if len(args.image_size) == 1:
+        args.image_size = args.image_size * 2
+    init_size = [s * 2 for s in args.image_size]
+
+    if args.simple_resize:
+        _resize_trfm = {
+            "image": transforms.Resize(init_size, interpolation=InterpolationMode.BILINEAR),
+            "label": transforms.Resize(init_size, interpolation=InterpolationMode.NEAREST),
+        }
+    else:
+        _resize_trfm = {
+            "image": ResizeZoomPad(init_size, "bilinear"),
+            "label": ResizeZoomPad(init_size, "nearest"),
+        }
+
+    trfm1 = MultiCompose([
+        _resize_trfm,
+        transforms.RandomCrop(args.image_size),
+    ])
+
+    # spatial transforms for student input & teacher prediction
+    trfm2 = MultiCompose([
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        {
+            "image": transforms.RandomAffine(degrees=45, translate=(0.1, 0.1), interpolation=InterpolationMode.BILINEAR),
+            "label": transforms.RandomAffine(degrees=45, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
+            "pseudo": transforms.RandomAffine(degrees=45, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
+        }
+    ])
+
+    # pixel transforms for image
+    trfm3 = transforms.RandomChoice([
+        transforms.RandomAdjustSharpness(2),
+        transforms.GaussianBlur((5, 9)),
+    ])
+
+    return trfm1, trfm2, trfm3
 
 
 def strong_trfm(args):

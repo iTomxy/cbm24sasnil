@@ -3,7 +3,7 @@ This repository contains an *unofficial, partial* implementation of paper:
 > Huihui Zhou, Yan Wang, Benyan Zhang, Chunhua Zhou, Maxim S. Vonsky, Lubov B. Mitrofanova, Duowu Zou, and Qingli Li. 2024. Unsupervised domain adaptation for histopathology image segmentation with incomplete labels. Comput. Biol. Med. 171, C (Mar 2024). https://doi.org/10.1016/j.compbiomed.2024.108226
 
 I only implement its incomplete label correction stage as a baseline of incomplete label segmentation task.
-Also, I have NOT test this implementation on its original dataset.
+Also, I have NOT tested this implementation on its original dataset.
 
 # Backbone
 

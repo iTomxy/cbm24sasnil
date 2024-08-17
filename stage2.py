@@ -103,9 +103,6 @@ def train(args):
     dynamic_f = osp.join(args.log_path, "dynamics.json")
     writer = SummaryWriter(log_dir=args.log_path)
     os.makedirs(args.log_path, exist_ok=True)
-    assert not os.path.isfile(osp.join(args.log_path, "config.json"))
-    with open(os.path.join(args.log_path, "config.json"), "w") as f:
-        json.dump(args.__dict__, f, indent=1)
 
 
     def val(i_it, loss):
@@ -148,6 +145,10 @@ def train(args):
         best_dice = ckpt["best_dice"]
         print("Resume:", args.resume, ", start from:", start_iter)
     else:
+        assert not os.path.isfile(osp.join(args.log_path, "config.json"))
+        with open(os.path.join(args.log_path, "config.json"), "w") as f:
+            json.dump(args.__dict__, f, indent=1)
+
         assert not osp.isfile(dynamic_f), dynamic_f
         with open(dynamic_f, "w") as f:
             f.write(json.dumps(args.__dict__) + os.linesep)

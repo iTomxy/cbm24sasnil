@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Liang"
+  given-names: "Tianyou"
+  orcid: "https://orcid.org/0000-0002-2213-3029"
+title: "Reimplementation of SASN-IL"
+version: 0.0.1
+date-released: 2024-8-187
+url: "https://github.com/iTomxy/cbm24sasnil"

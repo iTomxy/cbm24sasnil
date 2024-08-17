@@ -23,3 +23,27 @@ See [iTomxy/data/totalsegmentator](https://github.com/iTomxy/data/tree/master/to
 - [nibabel](https://github.com/nipy/nibabel)
 - ~~[invertransforms](https://github.com/gregunz/invertransforms)~~
 - [scikit-image](https://github.com/scikit-image/scikit-image)
+
+# Train & Test
+
+```shell
+bash run.sh
+```
+
+# Citation
+
+If you find this repository helpful,
+please consider citing it as follows:
+
+```
+@software{Liang_Reimplementation_of_SASN-IL,
+    author = {Liang, Tianyou},
+    title = {Reimplementation of SASN-IL},
+    url = {https://github.com/iTomxy/cbm24sasnil},
+    version = {2024.8.17}
+}
+```
+
+You can also export this BibTeX or APA format citation string via the *Cite this repository* at the right-side panel of this GitHub repository page.
+
+You may also want to cite the original paper, see [here](https://www.sciencedirect.com/science/article/pii/S001048252400310X).

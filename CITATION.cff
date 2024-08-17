@@ -5,6 +5,6 @@ authors:
   given-names: "Tianyou"
   orcid: "https://orcid.org/0000-0002-2213-3029"
 title: "Reimplementation of SASN-IL"
-version: 0.0.1
+version: 2024.8.17
 date-released: 2024-8-187
 url: "https://github.com/iTomxy/cbm24sasnil"

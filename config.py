@@ -88,7 +88,9 @@ def stage2_args():
     parser = base_parser()
     add_common_train_args(parser)
     # pseudo-label
+    parser.add_argument('--cl_pseudo_start', type=int, default=100, help="start iteration of using the proposed confidence learning based pseudo-label")
     parser.add_argument('--pseudo_agg_mode', type=str, default='bbox', choices=AGGREGATE_MODE)
+    parser.add_argument('--resume_student', action="store_true", help="also initialise the student with the warmed-up initial teacher weight")
 
     # teacher
     parser.add_argument('--teacher_weight', type=str, default="", help="path to ckeckpoint of teacher from 1st stage")

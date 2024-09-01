@@ -236,6 +236,17 @@ def bin_seg_err_map(*, y, pred):
     return np.asarray(color_seg(err_map, palette=err_map_palette))#, dtype=np.uint8)
 
 
+def std_to_rgb(image, restd=False):
+    """convert a normalised gray scale image to RBG image for visualisation
+    Input:
+        image: [H, W], numpy.ndarray, range in [0, 1] (normalised)
+        restd: bool, if True, rescale value to [0, 1] first
+    Output:
+        image_rbg: [H, W, 3], numpy.ndarray, range in {0, ..., 255}
+    """
+    return np.tile(np.clip(image * 255, 0, 255).astype(np.uint8)[:, :, np.newaxis], (1, 1, 3))
+
+
 if "__main__" == __name__:
     p = free_port()
     print(p, type(p)) # int

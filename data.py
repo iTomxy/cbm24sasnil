@@ -34,7 +34,7 @@ def get_bone_data_files(dataset, subset, data_root="~/data"):
             npz_list.extend(glob.glob(os.path.join(data_path, subset, vid, "*.npz")))
     elif "ctpelvic1k" == dataset:
         data_path = os.path.expanduser(os.path.join(data_root, "ctpelvic1k"))
-        split_f = os.path.join(data_path, "splitting.json")
+        split_f = os.path.join("datalist", f"splitting-{dataset}.json")
         slice_p = os.path.join(data_path, "processed-ctpelvic1k-slice-is")
         with open(split_f, "r") as f:
             split_dict = json.load(f)["splitting"]
@@ -45,7 +45,7 @@ def get_bone_data_files(dataset, subset, data_root="~/data"):
         sub_dset = dataset.split('-')[1]
         data_path = os.path.expanduser(os.path.join(data_root, "totalsegmentator"))
         sub_dset_path = os.path.expanduser(os.path.join(data_path, sub_dset))
-        split_f = os.path.join(data_path, f"splitting-{dataset[9:]}.json") # compatible with `tatalseg-spine-small`
+        split_f = os.path.join("datalist", f"splitting-{dataset[9:]}.json") # compatible with `tatalseg-spine-small`
         with open(split_f, "r") as f:
             split_dict = json.load(f)["splitting"]
         for vid in split_dict[subset]:
@@ -69,7 +69,7 @@ def get_bone_nii_list(dataset, subset="test", data_root="~/data"):
     image_nii_list, label_nii_list, ts_label_nii_list, vol_id_list = [], [], [], []
     if "ctpelvic1k" == dataset:
         data_base = os.path.join(data_root, dataset)
-        with open(os.path.join(data_base, "splitting.json"), "r") as f:
+        with open(os.path.join("datalist", f"splitting-{dataset}.json"), "r") as f:
             split_dict = json.load(f)["splitting"]
         data_dir = os.path.join(data_base, "processed-ctpelvic1k")
         ts_label_dir = os.path.join(data_base, "processed-ctpelvic1k-ts-bone-label")
@@ -91,7 +91,7 @@ def get_bone_nii_list(dataset, subset="test", data_root="~/data"):
     elif dataset.startswith("totalseg-"):
         data_base = os.path.join(data_root, "totalsegmentator")
         sub_dset = dataset.split('-')[1]
-        with open(os.path.join(data_base, f"splitting-{dataset[9:]}.json"), "r") as f:
+        with open(os.path.join("datalist", f"splitting-{dataset[9:]}.json"), "r") as f:
             split_dict = json.load(f)["splitting"]
         data_dir = os.path.join(data_base, sub_dset)
         for vid in split_dict[subset]:

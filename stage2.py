@@ -29,7 +29,7 @@ def pseudo_by_fn_estim(partial_bin_lab, pred_sm):
         pseudo: [h, w], in {0, 1}
     """
     nc, h, w = pred_sm.shape
-    gamma = np.zeros([nc], dtype=np.float32)
+    gamma = np.zeros([nc], dtype=np.float32) + 2 # 2 > 1, represents impossible probability threshold
     for ic in range(nc):
         _msk = (ic == partial_bin_lab)
         if _msk.any():
@@ -45,8 +45,10 @@ def pseudo_by_fn_estim(partial_bin_lab, pred_sm):
         (ic == partial_bin_lab).sum() for ic in range(nc)
     ], dtype=np.float32)[np.newaxis, :] # [1, c]
     Q_numer = C_norm_j * X_card_i
-    _q_denom = Q_numer.sum(0, keepdims=True)
-    Q = Q_numer / np.where(_q_denom > 0, _q_denom, 1)
+    # _q_denom = Q_numer.sum(0, keepdims=True)
+    # Q = Q_numer / np.where(_q_denom > 0, _q_denom, 1)
+    _q_denom = Q_numer.sum()
+    Q = Q_numer / (_q_denom if _q_denom > 0 else 1)
 
     n_fn = int(Q[0][1] * h * w) # estimated #FN pixels
     asc_p0 = np.sort(pred_sm[0, 0 == partial_bin_lab].flatten())
@@ -66,7 +68,12 @@ def train(args):
     with open(osp.join(osp.dirname(args.teacher_weight), "config.json"), "r") as f:
         old_args = argparse.Namespace(**json.load(f))
     teacher = build_model(old_args).to(device)
+    init_teacher_ckpt = torch.load(args.teacher_weight)
+    teacher.load_state_dict(init_teacher_ckpt["model"])
+    teacher.eval()
     model = build_model(old_args).to(device)
+    if args.resume_student:
+        model.load_state_dict(init_teacher_ckpt["model"])
     # update args
     old_args.__dict__.update(args.__dict__) # new overwrites old
     args = old_args
@@ -170,12 +177,17 @@ def train(args):
         with torch.no_grad():
             _, tea_pred_list = teacher(inputs.to(device))
             tea_preds = tea_pred_list[0]
-        tea_preds_sm = tea_preds.softmax(1).cpu().numpy() # [bs, c, h, w]
         # infer pseudo-labels by FN estimation
-        pseudos = np.vstack([
-            pseudo_by_fn_estim(lab_bp, pred_sm)[np.newaxis]
-            for lab_bp, pred_sm in zip(labels_bin_par[:, 0].numpy(), tea_preds_sm)
-        ])
+        if i_iter >= args.cl_pseudo_start:
+            tea_preds_sm = tea_preds.softmax(1).cpu().numpy() # [bs, c, h, w]
+            pseudos = np.vstack([
+                pseudo_by_fn_estim(lab_bp, pred_sm)[np.newaxis]
+                for lab_bp, pred_sm in zip(labels_bin_par[:, 0].numpy(), tea_preds_sm)
+            ])
+        else:
+            # Before using confidence learning based pseudo labels,
+            # use teacher prediction as pseudo labels.
+            pseudos = tea_preds.argmax(1).cpu().numpy()
         # aggregate with given partial label
         pseudos = np.vstack([
             aggregate_label(lab_bp, plab, args.pseudo_agg_mode)[np.newaxis]

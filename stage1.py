@@ -94,7 +94,8 @@ def train(args):
     if len(args.decay_steps) > 0:
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=args.decay_steps)
 
-    dynamic_f = osp.join(args.log_path, "dynamics.json")
+    dynamic_f = osp.join(args.log_path, "dynamics.json") # dynamic of training set -> draw curve
+    dynamic_val_f = osp.join(args.log_path, "dynamics-val.json") # dynamic on validation set
     writer = SummaryWriter(log_dir=args.log_path)
     os.makedirs(args.log_path, exist_ok=True)
     with open(os.path.join(args.log_path, "config.json"), "w") as f:
@@ -121,6 +122,12 @@ def train(args):
         loader = torch.utils.data.DataLoader(val_ds, batch_size=32, shuffle=False, pin_memory=torch.cuda.is_available())
         vis_pred(args, [model], loader, osp.join(args.log_path, "vis", str(i_it)))
 
+        res_val, _ = test_3d(args, model, args.dataset, "validation", val_trans, bin_fn=bin_fn_full) # val with full label
+        with open(dynamic_val_f, "a") as f:
+            log = {"iter": i_it, "loss": loss}
+            log.update(res_val)
+            f.write(json.dumps(log) + os.linesep)
+
 
     start_iter = 0
     if args.resume:
@@ -133,9 +140,10 @@ def train(args):
         start_iter = ckpt["iter"] + 1
         print("Resume:", args.resume, ", start from:", start_iter)
     else:
-        assert not osp.isfile(dynamic_f), dynamic_f
-        with open(dynamic_f, "w") as f:
-            f.write(json.dumps(args.__dict__) + os.linesep)
+        for dyf in (dynamic_f, dynamic_val_f):
+            assert not osp.isfile(dyf), dyf
+            with open(dyf, "w") as f:
+                f.write(json.dumps(args.__dict__) + os.linesep)
 
         # val before training
         if not args.debug:
@@ -201,10 +209,10 @@ def train(args):
         if scheduler is not None:
             scheduler.step()
             sd["scheduler"] = scheduler.state_dict()
-        torch.save(sd, osp.join(args.log_path, f"ckpt-{i_iter}.pth"))
-        if args.rm_old_ckpt and (i_iter - 1) % args.val_freq != 0:
-            if osp.isfile(osp.join(args.log_path, f"ckpt-{i_iter - 1}.pth")):
-                os.remove(osp.join(args.log_path, f"ckpt-{i_iter - 1}.pth"))
+        torch.save(sd, osp.join(args.log_path, f"ckpt-{i_iter + 1}.pth"))
+        if args.rm_old_ckpt and i_iter % args.val_freq != 0:
+            if osp.isfile(osp.join(args.log_path, f"ckpt-{i_iter}.pth")):
+                os.remove(osp.join(args.log_path, f"ckpt-{i_iter}.pth"))
 
         if args.debug:
             break

@@ -4,14 +4,18 @@ import argparse, os, time
 SUPPORTED_DATASETS = (
     "totalseg-spine", "totalseg-spine-small",
     "totalseg-pelvic", "totalseg-pelvic-small",
-    "totalseg-spineLSpelvic", "totalseg-spineLSpelvic-small"
+    "totalseg-spineLSpelvic", "totalseg-spineLSpelvic-small",
+    "totalseg-spineCshoulder-small"
 )
 
 # subsets of all classes of TotalSegmentator
+# classes of new TotalSegmentator v2
+# totalsegmentator/map_to_binary.py/"total"
 TOTALSEG_CLS_SET = {
     "bone": set(list(range(25, 50+1)) + list(range(69, 78+1)) + list(range(91, 116+1))),
     "spine": set(list(range(26, 50+1))),
     "pelvic": (25, 77, 78),
+    "shoulder": list(range(69, 74+1)), # humerus, scapula, clavicula
 }
 
 # how to aggregate partial label & teacher prediction to form pseudo-label

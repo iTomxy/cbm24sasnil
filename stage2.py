@@ -114,7 +114,7 @@ def train(args):
 
     def val(i_it, loss):
         # validate (use PARTIAL label -> bin_fn_train)
-        res, _ = test_3d(args, model, args.dataset, "training", val_trans, bin_fn=bin_fn_train)
+        res, _ = test_3d(args, model, args.dataset, "validation", val_trans, bin_fn=bin_fn_full)
         # write json
         with open(dynamic_f, "a") as f:
             log = {"iter": i_it, "loss": loss}
@@ -282,10 +282,10 @@ def train(args):
                 ckpt["best_dice"] = best_dice = val_dice # update
                 torch.save(ckpt, osp.join(args.log_path, f"best_val.pth"))
 
-        torch.save(ckpt, osp.join(args.log_path, f"ckpt-{i_iter}.pth"))
+        torch.save(ckpt, osp.join(args.log_path, f"ckpt-{i_iter + 1}.pth"))
         if args.rm_old_ckpt:
-            if osp.isfile(osp.join(args.log_path, f"ckpt-{i_iter - 1}.pth")):
-                os.remove(osp.join(args.log_path, f"ckpt-{i_iter - 1}.pth"))
+            if osp.isfile(osp.join(args.log_path, f"ckpt-{i_iter}.pth")):
+                os.remove(osp.join(args.log_path, f"ckpt-{i_iter}.pth"))
 
         if args.debug:
             break

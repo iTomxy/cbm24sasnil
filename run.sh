@@ -43,7 +43,7 @@ python test.py totalseg-spineLSpelvic-small $lp/ckpt-${best_i}.pth
 
 echo 2nd stage: label correction training, continue training from 1st ckpt
 lp=log/2nd-re_stu
-tw=log/1st/ckpt-140.pth
+tw=log/1st/ckpt-${best_i}.pth
 python stage2.py totalseg-spineLSpelvic-small --rm_old_ckpt --log_path $lp --data_root ~/data \
     --iter 10000 --val_freq 50 --teacher_weight $tw --ema --ema_start 0 --ema_freq 1 --ema_momentum 0.95 --cl_pseudo_start 0 --resume_student
 python test.py totalseg-spineLSpelvic-small $lp/best_val.pth

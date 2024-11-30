@@ -163,6 +163,14 @@ def train(args):
         # val before training
         if not args.debug:
             best_dice = val(0, 1)
+            # save the inititial model as best in case it's getting worse in following training
+            torch.save({
+                "iter": 0,
+                "model": model.state_dict(),
+                "teacher": teacher.state_dict(),
+                # "optimizer": optimizer.state_dict(),
+                "best_dice": best_dice, # currently old best dice
+            }, osp.join(args.log_path, f"best_val.pth"))
 
     # train
     max_entropy = math.log(args.n_classes)
@@ -281,6 +289,18 @@ def train(args):
             if val_dice > best_dice:
                 ckpt["best_dice"] = best_dice = val_dice # update
                 torch.save(ckpt, osp.join(args.log_path, f"best_val.pth"))
+
+            # early stop on significant drop
+            if val_dice < best_dice - 0.1:
+                print("early stop on significant val dice drop:", i_iter, best_dice, val_dice)
+                with open(dynamic_f, "a") as f:
+                    f.write(json.dumps({
+                        "iter": i_iter,
+                        "msg": "early stop on significant val dice drop",
+                        "best_dice": best_dice,
+                        "current_dice": val_dice,
+                    }) + os.linesep)
+                break
 
         torch.save(ckpt, osp.join(args.log_path, f"ckpt-{i_iter + 1}.pth"))
         if args.rm_old_ckpt:

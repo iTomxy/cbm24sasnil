@@ -3,105 +3,104 @@ import numpy as np
 import cv2
 from PIL import Image
 import skimage
-import medpy.io as medio
-import nibabel as nib
+# import nibabel as nib
 import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 from torchvision.transforms import InterpolationMode
 import torchvision.transforms.functional as F
 from util import seed_everything
-from config import TOTALSEG_CLS_SET, AGGREGATE_MODE
+from config import AGGREGATE_MODE
 
 
-def get_bone_data_files(dataset, subset, data_root="~/data"):
-    assert subset in ("training", "test", "validation"), subset
-    data_list_path = "datalist"
-    split_csv_f = os.path.join(data_list_path, f"datalist_{dataset}_{subset}.csv")
-    npz_list = []
-    if os.path.isfile(split_csv_f):
-        with open(split_csv_f, "r") as f:
-            for line in csv.DictReader(f):
-                npz_list.append(line["npz"])
+# def get_bone_data_files(dataset, subset, data_root="~/data"):
+#     assert subset in ("training", "test", "validation"), subset
+#     data_list_path = "datalist"
+#     split_csv_f = os.path.join(data_list_path, f"datalist_{dataset}_{subset}.csv")
+#     npz_list = []
+#     if os.path.isfile(split_csv_f):
+#         with open(split_csv_f, "r") as f:
+#             for line in csv.DictReader(f):
+#                 npz_list.append(line["npz"])
 
-        return npz_list
+#         return npz_list
 
-    print("make data list:", dataset, subset)
-    os.makedirs(data_list_path, exist_ok=True)
-    if "verse19" == dataset:
-        data_path = os.path.expanduser(os.path.join(data_root, "verse/processed-verse19-slice-is"))
-        for vid in os.listdir(os.path.join(data_path, subset)):
-            npz_list.extend(glob.glob(os.path.join(data_path, subset, vid, "*.npz")))
-    elif "ctpelvic1k" == dataset:
-        data_path = os.path.expanduser(os.path.join(data_root, "ctpelvic1k"))
-        split_f = os.path.join("datalist", f"splitting-{dataset}.json")
-        slice_p = os.path.join(data_path, "processed-ctpelvic1k-slice-is")
-        with open(split_f, "r") as f:
-            split_dict = json.load(f)["splitting"]
-        for sub_dset in split_dict:
-            for vid in split_dict[sub_dset][subset]:
-                npz_list.extend(glob.glob(os.path.join(data_path, vid, "*.npz")))
-    elif dataset.startswith("totalseg-"):
-        sub_dset = dataset.split('-')[1]
-        data_path = os.path.expanduser(os.path.join(data_root, "totalsegmentator"))
-        sub_dset_path = os.path.expanduser(os.path.join(data_path, sub_dset))
-        split_f = os.path.join("datalist", f"splitting_compvol-{dataset[9:]}.json") # compatible with `tatalseg-spine-small`
-        with open(split_f, "r") as f:
-            split_dict = json.load(f)["splitting"]
-        for vid in split_dict[subset]:
-            npz_list.extend(glob.glob(os.path.join(sub_dset_path, vid, "slices_is", "*.npz")))
+#     print("make data list:", dataset, subset)
+#     os.makedirs(data_list_path, exist_ok=True)
+#     if "verse19" == dataset:
+#         data_path = os.path.expanduser(os.path.join(data_root, "verse/processed-verse19-slice-is"))
+#         for vid in os.listdir(os.path.join(data_path, subset)):
+#             npz_list.extend(glob.glob(os.path.join(data_path, subset, vid, "*.npz")))
+#     elif "ctpelvic1k" == dataset:
+#         data_path = os.path.expanduser(os.path.join(data_root, "ctpelvic1k"))
+#         split_f = os.path.join("datalist", f"splitting-{dataset}.json")
+#         slice_p = os.path.join(data_path, "processed-ctpelvic1k-slice-is")
+#         with open(split_f, "r") as f:
+#             split_dict = json.load(f)["splitting"]
+#         for sub_dset in split_dict:
+#             for vid in split_dict[sub_dset][subset]:
+#                 npz_list.extend(glob.glob(os.path.join(data_path, vid, "*.npz")))
+#     elif dataset.startswith("totalseg-"):
+#         sub_dset = dataset.split('-')[1]
+#         data_path = os.path.expanduser(os.path.join(data_root, "totalsegmentator"))
+#         sub_dset_path = os.path.expanduser(os.path.join(data_path, sub_dset))
+#         split_f = os.path.join("datalist", f"splitting_compvol-{dataset[9:]}.json") # compatible with `tatalseg-spine-small`
+#         with open(split_f, "r") as f:
+#             split_dict = json.load(f)["splitting"]
+#         for vid in split_dict[subset]:
+#             npz_list.extend(glob.glob(os.path.join(sub_dset_path, vid, "slices_is", "*.npz")))
 
-    assert len(npz_list) > 0
-    with open(split_csv_f, "w", newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=["npz"])
-        writer.writeheader()
-        for f in npz_list:
-            writer.writerow({"npz": f})
+#     assert len(npz_list) > 0
+#     with open(split_csv_f, "w", newline='') as f:
+#         writer = csv.DictWriter(f, fieldnames=["npz"])
+#         writer.writeheader()
+#         for f in npz_list:
+#             writer.writerow({"npz": f})
 
-    return npz_list
+#     return npz_list
 
 
-def get_bone_nii_list(dataset, subset="test", data_root="~/data"):
-    """totalseg_label: bool, also include completed label inferred by Total Segmentator"""
-    data_root = os.path.expanduser(data_root)
-    assert os.path.isdir(data_root), data_root
+# def get_bone_nii_list(dataset, subset="test", data_root="~/data"):
+#     """totalseg_label: bool, also include completed label inferred by Total Segmentator"""
+#     data_root = os.path.expanduser(data_root)
+#     assert os.path.isdir(data_root), data_root
 
-    image_nii_list, label_nii_list, ts_label_nii_list, vol_id_list = [], [], [], []
-    if "ctpelvic1k" == dataset:
-        data_base = os.path.join(data_root, dataset)
-        with open(os.path.join("datalist", f"splitting-{dataset}.json"), "r") as f:
-            split_dict = json.load(f)["splitting"]
-        data_dir = os.path.join(data_base, "processed-ctpelvic1k")
-        ts_label_dir = os.path.join(data_base, "processed-ctpelvic1k-ts-bone-label")
-        for sub_dset in split_dict:
-            for fid in split_dict[sub_dset][subset]:
-                image_nii_list.append(os.path.join(data_dir, fid + "_image.nii.gz"))
-                label_nii_list.append(os.path.join(data_dir, fid + "_label.nii.gz"))
-                ts_label_nii_list.append(os.path.join(ts_label_dir, fid + "_label_ts.nii.gz"))
-                vol_id_list.append(fid)
-    elif "verse19" == dataset:
-        data_path = os.path.join(data_root, "verse", "processed-verse19", subset)
-        ts_label_dir = os.path.join(data_root, "verse", "processed-verse19-ts-bone-label", subset)
-        for f in os.listdir(data_path):
-            if f.endswith("_image.nii.gz"):
-                image_nii_list.append(os.path.join(data_path, f))
-                label_nii_list.append(os.path.join(data_path, f[:-13] + "_label.nii.gz"))
-                ts_label_nii_list.append(os.path.join(ts_label_dir, f[:-13] + "_label_ts.nii.gz"))
-                vol_id_list.append(f[:-13])
-    elif dataset.startswith("totalseg-"):
-        data_base = os.path.join(data_root, "totalsegmentator")
-        sub_dset = dataset.split('-')[1]
-        with open(os.path.join("datalist", f"splitting_compvol-{dataset[9:]}.json"), "r") as f:
-            split_dict = json.load(f)["splitting"]
-        data_dir = os.path.join(data_base, sub_dset)
-        for vid in split_dict[subset]:
-            image_nii_list.append(os.path.join(data_dir, vid, "ct.nii.gz"))
-            label_nii_list.append(os.path.join(data_dir, vid, "comb_label.nii.gz"))
-            vol_id_list.append(vid)
+#     image_nii_list, label_nii_list, ts_label_nii_list, vol_id_list = [], [], [], []
+#     if "ctpelvic1k" == dataset:
+#         data_base = os.path.join(data_root, dataset)
+#         with open(os.path.join("datalist", f"splitting-{dataset}.json"), "r") as f:
+#             split_dict = json.load(f)["splitting"]
+#         data_dir = os.path.join(data_base, "processed-ctpelvic1k")
+#         ts_label_dir = os.path.join(data_base, "processed-ctpelvic1k-ts-bone-label")
+#         for sub_dset in split_dict:
+#             for fid in split_dict[sub_dset][subset]:
+#                 image_nii_list.append(os.path.join(data_dir, fid + "_image.nii.gz"))
+#                 label_nii_list.append(os.path.join(data_dir, fid + "_label.nii.gz"))
+#                 ts_label_nii_list.append(os.path.join(ts_label_dir, fid + "_label_ts.nii.gz"))
+#                 vol_id_list.append(fid)
+#     elif "verse19" == dataset:
+#         data_path = os.path.join(data_root, "verse", "processed-verse19", subset)
+#         ts_label_dir = os.path.join(data_root, "verse", "processed-verse19-ts-bone-label", subset)
+#         for f in os.listdir(data_path):
+#             if f.endswith("_image.nii.gz"):
+#                 image_nii_list.append(os.path.join(data_path, f))
+#                 label_nii_list.append(os.path.join(data_path, f[:-13] + "_label.nii.gz"))
+#                 ts_label_nii_list.append(os.path.join(ts_label_dir, f[:-13] + "_label_ts.nii.gz"))
+#                 vol_id_list.append(f[:-13])
+#     elif dataset.startswith("totalseg-"):
+#         data_base = os.path.join(data_root, "totalsegmentator")
+#         sub_dset = dataset.split('-')[1]
+#         with open(os.path.join("datalist", f"splitting_compvol-{dataset[9:]}.json"), "r") as f:
+#             split_dict = json.load(f)["splitting"]
+#         data_dir = os.path.join(data_base, sub_dset)
+#         for vid in split_dict[subset]:
+#             image_nii_list.append(os.path.join(data_dir, vid, "ct.nii.gz"))
+#             label_nii_list.append(os.path.join(data_dir, vid, "comb_label.nii.gz"))
+#             vol_id_list.append(vid)
 
-        ts_label_nii_list = label_nii_list
+#         ts_label_nii_list = label_nii_list
 
-    return image_nii_list, label_nii_list, ts_label_nii_list, vol_id_list
+#     return image_nii_list, label_nii_list, ts_label_nii_list, vol_id_list
 
 
 def std_image(image):
@@ -112,103 +111,103 @@ def std_image(image):
     return (image - image.min()) / denom
 
 
-def binarise_totalseg_label(lab, coi=TOTALSEG_CLS_SET["bone"]):
-    """binarise TotalSegmentator label
-    See: https://github.com/wasserth/TotalSegmentator#class-details
-    lab: numpy.ndarray
-    coi: set/tuple/list of int, classes ID regarded as positive
-    """
-    bin_lab = np.zeros_like(lab, dtype=np.uint8)
-    for c in np.unique(lab):
-        if c in coi:
-            bin_lab[c == lab] = 1
+# def binarise_totalseg_label(lab, coi=TOTALSEG_CLS_SET["bone"]):
+#     """binarise TotalSegmentator label
+#     See: https://github.com/wasserth/TotalSegmentator#class-details
+#     lab: numpy.ndarray
+#     coi: set/tuple/list of int, classes ID regarded as positive
+#     """
+#     bin_lab = np.zeros_like(lab, dtype=np.uint8)
+#     for c in np.unique(lab):
+#         if c in coi:
+#             bin_lab[c == lab] = 1
 
-    return bin_lab
-
-
-class BoneDataset(torch.utils.data.Dataset):
-    def __init__(self, npz_list, transform=None,
-        window=True, window_level=[300], window_width=[290], # window CT image
-        bin_fn=None, # label binarisation function
-    ):
-        """binary: bool, don't differentiate bones & only keep 1 `bone` class if True
-        convex_hull: bool, calculate, augment and return binary convex hull mask
-        """
-        self.npz_list = npz_list
-        self.transform = transform
-        self.bin_fn = bin_fn
-        if window:
-            assert len(window_level) == len(window_width) > 0
-        self.window = window
-        self.window_level = window_level
-        self.window_width = window_width
-    def __len__(self):
-        return len(self.npz_list)
-    def __getitem__(self, index):
-        with np.load(self.npz_list[index]) as _npz:
-            img = _npz["image"].astype(np.float32)
-            lab = _npz["label"]
-
-        if self.window is not None:
-            img_w_list = [
-                torch.FloatTensor(np.clip((img - (wl - ww)) / (2 * ww), 0, 1)).unsqueeze(0)
-                for wl, ww in zip(self.window_level, self.window_width)
-            ]
-            img_t = img_w_list[0] if 1 == len(self.window_level) else torch.cat(img_w_list, dim=0)
-        else:
-            img_t = torch.FloatTensor(img).unsqueeze(0)
-
-        if self.bin_fn is not None:
-            lab_t = torch.LongTensor(self.bin_fn(lab)).unsqueeze(0)
-        else:
-            lab_t = torch.LongTensor(lab).unsqueeze(0)
-
-        batch = {"image": img_t, "label": lab_t}
-        if self.transform is not None:
-            batch = self.transform(batch)
-        return batch
+#     return bin_lab
 
 
-class BoneDatasetNii(torch.utils.data.Dataset):
-    """for test set nii file"""
-    def __init__(self, image_nii, label_nii, slice_axis, transform=None,
-        bin_fn=None, # label binarisation function
-        window=True, window_level=[300], window_width=[290], # window CT image
-    ):
-        """binary: bool, don't differentiate bones & only keep 1 `bone` class if True"""
-        assert os.path.isfile(image_nii), image_nii
-        assert os.path.isfile(label_nii), label_nii
-        assert slice_axis in (0, 1, 2)
-        image = nib.load(image_nii).get_fdata().astype(np.float32)
-        label = nib.load(label_nii).get_fdata().astype(np.int32)
-        assert image.shape == label.shape, f"image: {image.shape}, label: {label.shape}"
-        if slice_axis != 0:
-            image = np.moveaxis(image, slice_axis, 0)
-            label = np.moveaxis(label, slice_axis, 0)
-        if window:
-            assert len(window_level) == len(window_width) > 0
-            img_w_list = [
-                torch.FloatTensor(np.clip((image - (wl - ww)) / (2 * ww), 0, 1)).unsqueeze(1) # [n, 1, h, w]
-                for wl, ww in zip(window_level, window_width)
-            ]
-            self.images = img_w_list[0] if 1 == len(window_level) else torch.cat(img_w_list, dim=1) # [n, c, h, w]
-        else:
-            self.images = torch.FloatTensor(image).float().unsqueeze(1) # [n, 1, h, w]
-        if bin_fn is not None:
-            self.labels = torch.LongTensor(bin_fn(label)).unsqueeze(1) # [n, 1, h, w]
-        else:
-            self.labels = torch.LongTensor(label).unsqueeze(1) # [n, 1, h, w]
-        # print(self.images.size(), self.labels.size(), end='\r')
-        self.transform = transform
-    def __len__(self):
-        return self.images.size(0)
-    def __getitem__(self, index):
-        img = self.images[index] # [c=1, h, w]
-        lab = self.labels[index]
-        batch = {"image": img, "label": lab}
-        if self.transform is not None:
-            batch = self.transform(batch)
-        return batch
+# class BoneDataset(torch.utils.data.Dataset):
+#     def __init__(self, npz_list, transform=None,
+#         window=True, window_level=[300], window_width=[290], # window CT image
+#         bin_fn=None, # label binarisation function
+#     ):
+#         """binary: bool, don't differentiate bones & only keep 1 `bone` class if True
+#         convex_hull: bool, calculate, augment and return binary convex hull mask
+#         """
+#         self.npz_list = npz_list
+#         self.transform = transform
+#         self.bin_fn = bin_fn
+#         if window:
+#             assert len(window_level) == len(window_width) > 0
+#         self.window = window
+#         self.window_level = window_level
+#         self.window_width = window_width
+#     def __len__(self):
+#         return len(self.npz_list)
+#     def __getitem__(self, index):
+#         with np.load(self.npz_list[index]) as _npz:
+#             img = _npz["image"].astype(np.float32)
+#             lab = _npz["label"]
+
+#         if self.window is not None:
+#             img_w_list = [
+#                 torch.FloatTensor(np.clip((img - (wl - ww)) / (2 * ww), 0, 1)).unsqueeze(0)
+#                 for wl, ww in zip(self.window_level, self.window_width)
+#             ]
+#             img_t = img_w_list[0] if 1 == len(self.window_level) else torch.cat(img_w_list, dim=0)
+#         else:
+#             img_t = torch.FloatTensor(img).unsqueeze(0)
+
+#         if self.bin_fn is not None:
+#             lab_t = torch.LongTensor(self.bin_fn(lab)).unsqueeze(0)
+#         else:
+#             lab_t = torch.LongTensor(lab).unsqueeze(0)
+
+#         batch = {"image": img_t, "label": lab_t}
+#         if self.transform is not None:
+#             batch = self.transform(batch)
+#         return batch
+
+
+# class BoneDatasetNii(torch.utils.data.Dataset):
+#     """for test set nii file"""
+#     def __init__(self, image_nii, label_nii, slice_axis, transform=None,
+#         bin_fn=None, # label binarisation function
+#         window=True, window_level=[300], window_width=[290], # window CT image
+#     ):
+#         """binary: bool, don't differentiate bones & only keep 1 `bone` class if True"""
+#         assert os.path.isfile(image_nii), image_nii
+#         assert os.path.isfile(label_nii), label_nii
+#         assert slice_axis in (0, 1, 2)
+#         image = nib.load(image_nii).get_fdata().astype(np.float32)
+#         label = nib.load(label_nii).get_fdata().astype(np.int32)
+#         assert image.shape == label.shape, f"image: {image.shape}, label: {label.shape}"
+#         if slice_axis != 0:
+#             image = np.moveaxis(image, slice_axis, 0)
+#             label = np.moveaxis(label, slice_axis, 0)
+#         if window:
+#             assert len(window_level) == len(window_width) > 0
+#             img_w_list = [
+#                 torch.FloatTensor(np.clip((image - (wl - ww)) / (2 * ww), 0, 1)).unsqueeze(1) # [n, 1, h, w]
+#                 for wl, ww in zip(window_level, window_width)
+#             ]
+#             self.images = img_w_list[0] if 1 == len(window_level) else torch.cat(img_w_list, dim=1) # [n, c, h, w]
+#         else:
+#             self.images = torch.FloatTensor(image).float().unsqueeze(1) # [n, 1, h, w]
+#         if bin_fn is not None:
+#             self.labels = torch.LongTensor(bin_fn(label)).unsqueeze(1) # [n, 1, h, w]
+#         else:
+#             self.labels = torch.LongTensor(label).unsqueeze(1) # [n, 1, h, w]
+#         # print(self.images.size(), self.labels.size(), end='\r')
+#         self.transform = transform
+#     def __len__(self):
+#         return self.images.size(0)
+#     def __getitem__(self, index):
+#         img = self.images[index] # [c=1, h, w]
+#         lab = self.labels[index]
+#         batch = {"image": img, "label": lab}
+#         if self.transform is not None:
+#             batch = self.transform(batch)
+#         return batch
 
 
 class MultiCompose:

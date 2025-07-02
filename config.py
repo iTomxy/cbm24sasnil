@@ -2,21 +2,8 @@ import argparse, os, time
 
 # processed from TotalSegmentator
 SUPPORTED_DATASETS = (
-    "totalseg-spine", "totalseg-spine-small",
-    "totalseg-pelvic", "totalseg-pelvic-small",
-    "totalseg-spineLSpelvic", "totalseg-spineLSpelvic-small",
-    "totalseg-spineCshoulder-small"
+    "ctpelvic1k", "totalseg-spineLSpelvic-small", "pengwin"
 )
-
-# subsets of all classes of TotalSegmentator
-# classes of new TotalSegmentator v2
-# totalsegmentator/map_to_binary.py/"total"
-TOTALSEG_CLS_SET = {
-    "bone": set(list(range(25, 50+1)) + list(range(69, 78+1)) + list(range(91, 116+1))),
-    "spine": set(list(range(26, 50+1))),
-    "pelvic": (25, 77, 78),
-    "shoulder": list(range(69, 74+1)), # humerus, scapula, clavicula
-}
 
 # how to aggregate partial label & teacher prediction to form pseudo-label
 AGGREGATE_MODE = ("bbox", "bbox_frac", "polygon", "convex")
@@ -35,6 +22,7 @@ def base_parser():
     parser = argparse.ArgumentParser()
     # data
     parser.add_argument('dataset', type=str, choices=SUPPORTED_DATASETS)
+    parser.add_argument('--data_root', type=str, default=os.path.expanduser("~/data/totalsegmentator"))
     # evaluation
     parser.add_argument('--include_bg', action="store_true", help="include bg (class 0) in evaluation")
     parser.add_argument('-m', '--metrics', type=str, nargs='+', default=[], help="if provided, only eval these metrics, else eval all")
@@ -43,8 +31,6 @@ def base_parser():
 
 
 def add_common_train_args(parser):
-    # data
-    parser.add_argument('--data_root', type=str, default=os.path.expanduser("~/sd10t"))
     # training
     parser.add_argument('--lr', type=float, default=5e-4)
     parser.add_argument('--backbone_lr_coef', type=float, default=1, help="can let the backbone update slower than seg heads")
@@ -53,6 +39,7 @@ def add_common_train_args(parser):
     parser.add_argument('-bs', '--batch_size', type=int, default=32)
     parser.add_argument('--decay_steps', type=int, nargs='+', default=[])
     parser.add_argument('-r', '--resume', type=str, default="")
+    parser.add_argument('--no_auto_resume', dest="auto_resume", action="store_false")
 
     # validation
     parser.add_argument('--val_freq', type=int, default=1, help="<=0 to disable validation (and visualisation)")
@@ -75,7 +62,7 @@ def stage1_args():
     parser.add_argument('-w', '--window', action="store_true", help="apply windowing")
     parser.add_argument('-wl', '--window_level', type=float, nargs='+', default=[1034])
     parser.add_argument('-ww', '--window_width', type=float, nargs='+', default=[2059])
-    parser.add_argument('-p', '--partial', type=str, default='', choices=list(TOTALSEG_CLS_SET.keys()))
+    # parser.add_argument('-p', '--partial', type=str, default='', choices=list(TOTALSEG_CLS_SET.keys()))
 
     # training
     parser.add_argument('--obviousness', type=int, default=0, help="if >0, only use slice with #bone pixel > this threshold for training")

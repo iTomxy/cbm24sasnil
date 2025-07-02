@@ -234,3 +234,4 @@ events.out.tfevents.*
 # this project
 log
 datalist
+tmp*.sh

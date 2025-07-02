@@ -8,11 +8,12 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import monai
 from monai.networks.utils import one_hot
-from data import *
+from data.aug import weak_trfm2, val_trfm
+from data import ts_spinelspelvic, pengwin, ctpelvic1k
 from util import *
 from modules import *
 from evaluation import *
-from config import stage2_args, TOTALSEG_CLS_SET
+from config import stage2_args
 from stage1 import vis_pred
 
 """
@@ -78,22 +79,32 @@ def train(args):
     old_args.__dict__.update(args.__dict__) # new overwrites old
     args = old_args
 
-    train_npzs = get_bone_data_files(args.dataset, "training", args.data_root)
-    val_img_niis, val_lab_niis, _, _ = get_bone_nii_list(args.dataset, "training", args.data_root)
+    if "totalseg-spineLSpelvic-small" == args.dataset:
+        data_pkg = ts_spinelspelvic
+    elif "pengwin" == args.dataset:
+        data_pkg = pengwin
+    elif "ctpelvic1k" == args.dataset:
+        data_pkg = ctpelvic1k
+
+    # train_npzs = get_bone_data_files(args.dataset, "training", args.data_root)
+    # val_img_niis, val_lab_niis, _, _ = get_bone_nii_list(args.dataset, "training", args.data_root)
+    val_vids = data_pkg.get_split_vids("validation")
 
     # label binarisation function
-    bin_fn_full = binarise_totalseg_label
-    if args.partial:
-        assert args.partial in TOTALSEG_CLS_SET, args.partial
-        bin_fn_train = functools.partial(binarise_totalseg_label, coi=TOTALSEG_CLS_SET[args.partial])
-    else:
-        bin_fn_train = bin_fn_full
+    # bin_fn_full = binarise_totalseg_label
+    # if args.partial:
+    #     assert args.partial in TOTALSEG_CLS_SET, args.partial
+    #     bin_fn_train = functools.partial(binarise_totalseg_label, coi=TOTALSEG_CLS_SET[args.partial])
+    # else:
+    #     bin_fn_train = bin_fn_full
 
     train_trans1, train_trans2, train_trans3 = weak_trfm2(args)
     val_trans = val_trfm(args)
 
-    train_ds = BoneDataset(train_npzs, train_trans1, bin_fn=bin_fn_train,
-        window=args.window, window_level=args.window_level, window_width=args.window_width)
+    # train_ds = BoneDataset(train_npzs, train_trans1, bin_fn=bin_fn_train,
+    #     window=args.window, window_level=args.window_level, window_width=args.window_width)
+    train_ds = data_pkg.SliceDataset("training", "partial", transform=train_trans1,
+        window=args.window, window_level=args.window_level, window_width=args.window_width, data_root=args.data_root)
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=torch.cuda.is_available())
     train_iter = infiter(train_loader)
 
@@ -114,21 +125,27 @@ def train(args):
 
     def val(i_it, loss):
         # validate (use PARTIAL label -> bin_fn_train)
-        res, _ = test_3d(args, model, args.dataset, "validation", val_trans, bin_fn=bin_fn_full)
+        # res, _ = test_3d(args, model, args.dataset, "validation", val_trans, bin_fn=bin_fn_full)
+        res, _ = test_3d(args, model, data_pkg.iter_vol_dataset(
+            val_vids, "full", val_trans, window=args.window, window_level=args.window_level, window_width=args.window_width,
+            data_root=args.data_root
+        ))
         # write json
         with open(dynamic_f, "a") as f:
-            log = {"iter": i_it, "loss": loss}
-            log.update(res)
-            f.write(json.dumps(log) + os.linesep)
+            f.write(json.dumps(lo{"iter": i_it, "loss": loss, "metrics": res}) + os.linesep)
         # write tensorboard
         for metr, v in res.items():
             if metr.endswith("_cw"):
                 continue
             writer.add_scalar(metr, v, i_it)
         # visualisation (use FULL label -> bin_fn_full)
-        i_nii = np.random.choice(len(val_img_niis))
-        val_ds = BoneDatasetNii(val_img_niis[i_nii], val_lab_niis[i_nii], args.slice_axis, val_trans, bin_fn_full,
-            window=args.window, window_level=args.window_level, window_width=args.window_width)
+        # i_nii = np.random.choice(len(val_img_niis))
+        # val_ds = BoneDatasetNii(val_img_niis[i_nii], val_lab_niis[i_nii], args.slice_axis, val_trans, bin_fn_full,
+        #     window=args.window, window_level=args.window_level, window_width=args.window_width)
+        val_ds = data_pkg.VolumeDataset(
+            np.random.choice(val_vids), "full", val_trans,
+            window=args.window, window_level=args.window_level, window_width=args.window_width,
+            data_root=args.data_root)
         loader = torch.utils.data.DataLoader(val_ds, batch_size=32, shuffle=False, pin_memory=torch.cuda.is_available())
         vis_pred(args, [model, teacher], loader, osp.join(args.log_path, "vis", str(i_it)))
         for _old_it in range(i_it - 5, max(0, i_it - 200), -1):
@@ -316,5 +333,19 @@ if "__main__" == __name__:
 
     assert args.val_freq > 0
     assert args.teacher_weight and osp.isfile(args.teacher_weight)
+
+    if not args.resume and args.auto_resume:
+        # auto-resume: find latest checkpoint when not specified
+        _max_it = -1
+        for f in glob.iglob(os.path.join(args.log_path, "ckpt-*.pth")):
+            _it = int(os.path.basename(f)[5: -4])
+            _max_it = max(_max_it, _it)
+
+        if _max_it > 0:
+            args.resume = os.path.join(args.log_path, "ckpt-{}.pth".format(_max_it))
+
+    # back-up codes
+    if not args.resume and not args.debug:
+        backup_files(os.path.join(args.log_path, "backup_code"), white_list=["*.py", "*.sh", "datalist/*.json"], black_list=["runs", ".*"])
 
     train(args)

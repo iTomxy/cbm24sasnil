@@ -137,6 +137,9 @@ class VolumeDataset(torch.utils.data.Dataset):
         label = label_nii.get_fdata().astype(np.int32)
         ts_pred = ts_pred_nii.get_fdata().astype(np.int32)
         assert image.shape == label.shape, f"image: {image.shape}, label: {label.shape}"
+        # Record volume shape here, BEFORE the axis moving below.
+        # This will be used to adjust the spacing according to the resizing in augmentation.
+        self.shape = image.shape
 
         # The orientation is RAS, and loading with nibabel won't change this.
         # See: https://github.com/iTomxy/data/blob/master/totalsegmentator/sieve.py

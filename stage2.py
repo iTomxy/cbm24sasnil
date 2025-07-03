@@ -1,4 +1,4 @@
-import argparse, os, os.path as osp, json, shutil, itertools, functools, math
+import argparse, os, os.path as osp, json, shutil, itertools, functools, math, glob
 from collections import defaultdict
 import numpy as np
 from scipy.optimize import curve_fit
@@ -8,7 +8,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 import monai
 from monai.networks.utils import one_hot
-from data.aug import weak_trfm2, val_trfm
+from data.aug import weak_trfm2, val_trfm, aggregate_label
 from data import ts_spinelspelvic, pengwin, ctpelvic1k
 from util import *
 from modules import *
@@ -132,7 +132,7 @@ def train(args):
         ))
         # write json
         with open(dynamic_f, "a") as f:
-            f.write(json.dumps(lo{"iter": i_it, "loss": loss, "metrics": res}) + os.linesep)
+            f.write(json.dumps({"iter": i_it, "loss": loss, "metrics": res}) + os.linesep)
         # write tensorboard
         for metr, v in res.items():
             if metr.endswith("_cw"):

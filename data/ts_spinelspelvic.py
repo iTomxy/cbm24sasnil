@@ -109,13 +109,13 @@ class VolumeDataset(torch.utils.data.Dataset):
         label_nii = nib.load(os.path.join(data_dir, volume_id, "comb_label.nii.gz"))
 
         self.spacing = tuple(map(float, image_nii.header.get_zooms().tolist())) # spacing of RAS
-        # Evaluation is slice-wise, and volumes are sliced along the IS axis.
-        # So only keep the spacing of R- and A-axis.
-        # self.spacing = self.spacing[:2]
 
         image = image_nii.get_fdata().astype(np.float32)
         label = label_nii.get_fdata().astype(np.int32)
         assert image.shape == label.shape, f"image: {image.shape}, label: {label.shape}"
+        # Record volume shape here, BEFORE the axis moving below.
+        # This will be used to adjust the spacing according to the resizing in augmentation.
+        self.shape = image.shape
 
         # The orientation is RAS, and loading with nibabel won't change this.
         # See: https://github.com/iTomxy/data/blob/master/totalsegmentator/sieve.py

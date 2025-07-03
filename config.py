@@ -27,6 +27,8 @@ def base_parser():
     parser.add_argument('--include_bg', action="store_true", help="include bg (class 0) in evaluation")
     parser.add_argument('-m', '--metrics', type=str, nargs='+', default=[], help="if provided, only eval these metrics, else eval all")
     parser.add_argument('--eval_type', type=str, default="monai", choices=["monai", "medpy"])
+    # misc
+    parser.add_argument('--debug', action="store_true")
     return parser
 
 
@@ -46,7 +48,6 @@ def add_common_train_args(parser):
     parser.add_argument('-v', '--vis', action="store_true", help="visualise prediction on validation")
 
     # misc
-    parser.add_argument('--debug', action="store_true")
     parser.add_argument('--rm_old_ckpt', action="store_true", help="rm old epoch-wish ckpt")
     parser.add_argument('-o', '--log_path', type=str, default="log/{}".format(time.strftime("%Y%m%d-%H%M%S", time.gmtime())))
 

@@ -327,12 +327,33 @@ def pred_volume(args, model, loader):
         pred_list.append(outputs)
         label_list.append(labels)
 
+    # Transpose so that the axis order, (LR, AP, IS), is preserved.
     pred_vol = np.vstack(pred_list).transpose(1, 2, 0)
     pred_vol = (1 == pred_vol).astype(np.uint8) # take care of unknown class (2)
     label_vol = np.vstack(label_list).transpose(1, 2, 0)
     # print(pred_vol.shape, label_vol.shape)
 
     return label_vol, pred_vol
+
+
+def adjust_spacing(original_shape, new_shape, original_spacing):
+    """Adjust the spacing according to resizing (assuming the axis order is perserved).
+    Input:
+        original_shape: int[3]
+        new_shape: int[3]
+        original_spacing: float[3]
+    Output:
+        new_spacing: float[3]
+    """
+    assert len(original_shape) == len(new_shape) == len(original_spacing)
+    # Convert inputs to numpy arrays
+    original_shape = np.array(original_shape)
+    new_shape = np.array(new_shape)
+    # Calculate scaling factors for each axis
+    scale_factors = original_shape.astype(float) / new_shape.astype(float)
+    # Calculate new spacing: new_spacing = original_spacing * scale_factor
+    new_spacing = original_spacing * scale_factors
+    return new_spacing
 
 
 # def test_3d(args, model, dataset, split, trfm, bin_fn=None):
@@ -372,7 +393,7 @@ def test_3d(args, model, vol_dset_iterator):
             label_vol = torch.LongTensor(label_vol)
         # evaluator(pred=pred_vol, y=label_vol)
         # volume-wise result
-        evaluator_vol(pred=pred_vol, y=label_vol, spacing=val_ds.spacing)
+        evaluator_vol(pred=pred_vol, y=label_vol, spacing=adjust_spacing(val_ds.shape, label_vol.shape, val_ds.spacing))
         vw_res = {"volume": vid, "metrics": evaluator_vol.reduce()}
         vol_wise_res.append(json.dumps(vw_res)) # will be written in one line
         evaluator_vol.reset() # reset for each volume

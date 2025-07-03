@@ -130,8 +130,8 @@ class VolumeDataset(torch.utils.data.Dataset):
         assert bin_mode in ("partial", "full", "as-is"), bin_mode
         self.volume_id = volume_id
         data_root = os.path.expanduser(data_root)
-        image_nii = nib.load(os.path.join(data_root, "reorient_LPS", "image_{}.nii.gz".format(volume_id)))
-        label_nii = nib.load(os.path.join(data_root, "reorient_LPS", "label_{}.nii.gz".format(volume_id)))
+        image_nii = nib.load(os.path.join(data_root, "reorient_LPS", "{}_image.nii.gz".format(volume_id)))
+        label_nii = nib.load(os.path.join(data_root, "reorient_LPS", "{}_label.nii.gz".format(volume_id)))
         ts_pred_nii = nib.load(os.path.join(data_root, "ts_pred", "{}-total.nii.gz".format(volume_id)))
 
         self.spacing = tuple(map(float, image_nii.header.get_zooms())) # spacing of LPS
@@ -140,6 +140,9 @@ class VolumeDataset(torch.utils.data.Dataset):
         label = label_nii.get_fdata().astype(np.int32)
         ts_pred = ts_pred_nii.get_fdata().astype(np.int32)
         assert image.shape == label.shape, f"image: {image.shape}, label: {label.shape}"
+        # Record volume shape here, BEFORE the axis moving below.
+        # This will be used to adjust the spacing according to the resizing in augmentation.
+        self.shape = image.shape
 
         # The orientation is RAS, and loading with nibabel won't change this.
         # See: https://github.com/iTomxy/data/blob/master/totalsegmentator/sieve.py

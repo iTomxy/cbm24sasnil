@@ -28,7 +28,7 @@ python test.py $dset $lp/ckpt-${best_i}.pth --data_root $data_root
 echo 2nd stage: label correction training, continue training from 1st ckpt
 lp=log/$dset/2nd-re_stu
 tw=log/$dset/1st/ckpt-${best_i}.pth
-python stage2.py $dset --data_root $data_root --rm_old_ckpt --log_path $lp --data_root ~/data \
+python stage2.py $dset --data_root $data_root --rm_old_ckpt --log_path $lp \
     --iter 10000 --val_freq 50 --teacher_weight $tw --ema --ema_start 0 --ema_freq 1 --ema_momentum 0.95 --cl_pseudo_start 0 --resume_student
 python test.py $dset $lp/best_val.pth --data_root $data_root
 

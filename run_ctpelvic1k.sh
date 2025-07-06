@@ -2,6 +2,13 @@ set -e
 trap 'echo \[`date`\] `whoami`@`hostname`:`realpath $0`, $LINENO | mail -s "cmd error" tianyou.liang@student.uts.edu.au' ERR
 trap 'echo \[`date`\] `whoami`@`hostname`:`realpath $0`, $LINENO | mail -s "cmd interrupted" tianyou.liang@student.uts.edu.au' TERM HUP
 
+function set_gpu() {
+    . find-gpu.sh -1 0 w
+    if [ $n_gpu_found -gt 0 ]; then
+        export CUDA_VISIBLE_DEVICES=$gpu_id
+    fi
+}
+
 # select 1st stage model by validation dice socre
 best_i=-1 # best iteration
 best_v=0  # best dice score
@@ -18,18 +25,22 @@ data_root=$HOME/data/ctpelvic1k
 
 echo 1st stage: initial training
 lp=log/$dset/1st
+set_gpu
 python stage1.py $dset --data_root $data_root --rm_old_ckpt --log_path $lp \
     --batch_size 32 --lr 5e-5 --iter 200 --val_freq 5 --window --obviousness 500
 pick_best $lp/dynamics-val.json
 echo $best_i, $best_v
+set_gpu
 python test.py $dset $lp/ckpt-${best_i}.pth --data_root $data_root
 
 
 echo 2nd stage: label correction training, continue training from 1st ckpt
 lp=log/$dset/2nd-re_stu
 tw=log/$dset/1st/ckpt-${best_i}.pth
+set_gpu
 python stage2.py $dset --data_root $data_root --rm_old_ckpt --log_path $lp \
     --iter 10000 --val_freq 50 --teacher_weight $tw --ema --ema_start 0 --ema_freq 1 --ema_momentum 0.95 --cl_pseudo_start 0 --resume_student
+set_gpu
 python test.py $dset $lp/best_val.pth --data_root $data_root
 
 

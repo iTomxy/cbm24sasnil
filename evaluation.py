@@ -398,6 +398,7 @@ def test_3d(args, model, vol_dset_iterator):
         vol_wise_res.append(json.dumps(vw_res)) # will be written in one line
         evaluator_vol.reset() # reset for each volume
         evaluator.load_from_dict(vw_res["metrics"])
+        del pred_vol, label_vol
         if args.debug:
             break
 

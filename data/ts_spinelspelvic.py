@@ -108,7 +108,7 @@ class VolumeDataset(torch.utils.data.Dataset):
         image_nii = nib.load(os.path.join(data_dir, volume_id, "ct.nii.gz"))
         label_nii = nib.load(os.path.join(data_dir, volume_id, "comb_label.nii.gz"))
 
-        self.spacing = tuple(map(float, image_nii.header.get_zooms().tolist())) # spacing of RAS
+        self.spacing = tuple(map(float, image_nii.header.get_zooms())) # spacing of RAS
 
         image = image_nii.get_fdata().astype(np.float32)
         label = label_nii.get_fdata().astype(np.int32)

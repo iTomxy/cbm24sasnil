@@ -1,4 +1,4 @@
-import os, re, random, math, socket, time, timeit, functools, fnmatch, shutil
+import os, re, random, math, socket, time, timeit, functools, fnmatch, shutil, subprocess
 import packaging.version
 import numpy as np
 import cv2
@@ -331,6 +331,56 @@ def backup_files(backup_root, src_root='.', white_list=[], black_list=[], ignore
 
     os.chdir(cwd) # return to current working dir on finish
     rm_empty_dir(backup_root)
+
+
+def gpus_type():
+    """detect types of each GPU based on the `nvidia-smi` command"""
+    gpu_types = {}
+    try:
+        output = subprocess.check_output(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"], encoding="utf-8")
+        gpus = output.strip().split("\n")
+        gpu_types = {i: gpu for i, gpu in enumerate(gpus)}
+        print("GPU types:", gpu_types)
+    except FileNotFoundError:
+        print("`nvidia-smi` is not installed or no NVIDIA GPU found.")
+    except Exception as e:
+        print(f"Error: {e}")
+
+    return gpu_types
+
+
+def calc_stat(lst, percentages=[], prec=None, scale=None):
+    """list of statistics: median, mean, standard error, min, max, percentiles
+    It can be useful when you want to know these statistics of a list and
+    dump them in a json log/string.
+    Input:
+        lst: list of number
+        percentages: List[float] = [], what percentiles (quantile) to cauculate
+        prec: int|None = None, round to which decimal place if it is an int
+        scale: int|float|None = None, scale the elements in `lst` if it is an int or float
+            Use it when `lst` contains normalised number (i.e. in [0, 1]) and you want to
+            present them in percentage (i.e. 0.xyz -> xy.z%)
+    """
+    if isinstance(scale, (int, float)):
+        lst = list(map(lambda x: scale * x, lst))
+
+    ret = {
+        "min": float(np.min(lst)),
+        "max": float(np.max(lst)),
+        "mean": float(np.mean(lst)),
+        "std": float(np.std(lst)),
+        "median": float(np.median(lst))
+    }
+    if len(percentages) > 0:
+        percentages = [max(1e-7, min(p, 100 - 1e-7)) for p in percentages]
+        percentiles = np.pencentile(lst, percentages)
+        for ptage, ptile in zip(percentages, percentiles):
+            ret["p_{}".format(ptage)] = float(ptile)
+
+    if isinstance(prec, int):
+        ret = {k: round(v, prec) for k, v in ret.items()}
+
+    return ret
 
 
 if "__main__" == __name__:

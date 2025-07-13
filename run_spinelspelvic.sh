@@ -30,7 +30,7 @@ data_root=$HOME/data/totalsegmentator
 echo 1st stage: initial training
 lp=log/$dset/1st
 set_gpu
-python stage1.py $dset --rm_old_ckpt --log_path $lp --data_root $data_root \
+python stage1.py $dset --rm_old_ckpt --log_path $lp --data_root $data_root -m dice \
     --batch_size 32 --lr 5e-5 --iter 200 --val_freq 5 --window --obviousness 500
 pick_best $lp/dynamics-val.json
 echo $best_i, $best_v
@@ -56,7 +56,7 @@ echo 2nd stage: label correction training, continue training from 1st ckpt
 lp=log/$dset/2nd-re_stu
 tw=log/$dset/1st/ckpt-${best_i}.pth
 set_gpu
-python stage2.py $dset --rm_old_ckpt --log_path $lp --data_root $data_root \
+python stage2.py $dset --rm_old_ckpt --log_path $lp --data_root $data_root -m dice \
     --iter 10000 --val_freq 50 --teacher_weight $tw --ema --ema_start 0 --ema_freq 1 --ema_momentum 0.95 --cl_pseudo_start 0 --resume_student
 set_gpu
 python test.py $dset $lp/best_val.pth --data_root $data_root

@@ -343,7 +343,7 @@ if "__main__" == __name__:
 
     # back-up codes
     if not args.resume and not args.debug:
-        backup_files(os.path.join(args.log_path, "backup_code"), white_list=["*.py", "*.sh", "datalist/*.json"], black_list=["runs", ".*"])
+        backup_files(os.path.join(args.log_path, "backup_code"), white_list=["*.py", "*.sh", "datalist/*.json"], black_list=["log/*", ".ipynb_checkpoints/*"])
 
     train(args)
     analyse_dynamic(args)

@@ -262,26 +262,30 @@ def rm_empty_dir(root_dir):
         os.rmdir(root_dir)
 
 
-def backup_files(backup_root, src_root='.', white_list=[], black_list=[], ignore_symlink=True):
+def backup_files(backup_root, src_root='.', white_list=[], black_list=[], ignore_symlink_dir=True, ignore_symlink_file=False):
     """Back-up files (e.g. codes) by copying recursively, selecting files based on white & black list.
     Only files match one of the white patterns will be candidates, and will be ignored if
-    they match any black patterns. I.e. black list is prioritised over white list.
+    match any black pattern. I.e. black list is prioritised over white list.
+
+    Potential alternative: shutil.copytree
 
     Example (back-up codes in a Python project):
     ```python
     backup_files(
         "./logs/1st-run/backup_code",
         white_list=["*.py", "scripts/*.sh"],
-        black_list=["logs", ".*"],  # `.*` for `.idea/`, `.ipynb_checkpoints/`
+        black_list=["logs/*"],  # to ignore the folder `logs/`
     )
     ```
+    NOTE that to ignore a folder with `black_list`, one MUST writes in `<folder>/*` format.
 
     Input:
         backup_root: root folder to back-up file
         src_root: str, path to the root folder to search
         white_list: List[str], file pattern/s to back-up
         black_list: List[str], file/folder pattern/s to ignore
-        ignore_symlink: bool, ignore (i.e. don't back-up & search) symbol link to file/folder
+        ignore_symlink_dir: bool = True, ignore (i.e. don't back-up & search) symbol link to folder
+        ignore_symlink_file: bool = False, ignore (i.e. don't back-up & search) symbol link to file
     """
     assert os.path.isdir(src_root), src_root
     assert not os.path.isdir(backup_root), f"* Back-up folder already exists: {backup_root}"
@@ -311,16 +315,16 @@ def backup_files(backup_root, src_root='.', white_list=[], black_list=[], ignore
     os.chdir(src_root)
 
     for root, dirs, files in os.walk('.'):
-        if '.' != root and _check(root, black_list):
+        if '.' != root and _check(os.path.relpath(root), black_list):
             continue
-        if ignore_symlink and os.path.islink(root):
+        if ignore_symlink_dir and os.path.islink(root):
             continue
 
         bak_d = os.path.join(backup_root, root)
         os.makedirs(bak_d, exist_ok=True)
         for f in files:
             ff = os.path.join(root, f)
-            if ignore_symlink and os.path.islink(ff):
+            if ignore_symlink_file and os.path.islink(ff):
                 continue
             if _check(ff, white_list) and not _check(ff, black_list):
                 shutil.copy(ff, os.path.join(bak_d, f))

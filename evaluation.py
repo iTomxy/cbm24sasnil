@@ -304,10 +304,9 @@ class SegEvaluatorMonai:
 
 
 @torch.no_grad()
-def pred_volume(args, model, loader):
+def pred_volume(model, loader):
     """calculate prediction of a nii volume & its label volume
     Input:
-        args: argparse.Namespace
         model: UnetAndClf
         loader: torch.utils.data.DataLoader
         within_bbox: bool, only evaluate within bbox
@@ -387,7 +386,7 @@ def test_3d(args, model, vol_dset_iterator):
     for vid, val_ds in vol_dset_iterator:
         print(vid, end='\r')
         loader = torch.utils.data.DataLoader(val_ds, batch_size=32, shuffle=False, pin_memory=torch.cuda.is_available())
-        label_vol, pred_vol = pred_volume(args, model, loader)
+        label_vol, pred_vol = pred_volume(model, loader)
         if "monai" == args.eval_type:
             pred_vol = torch.LongTensor(pred_vol)
             label_vol = torch.LongTensor(label_vol)

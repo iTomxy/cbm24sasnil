@@ -19,7 +19,7 @@ CTPELVIC1K_CLS_SET = {
     "background": (0,),
     "sacrum": (1,),
     "hip": (2, 3),
-    "lumbar_vertebra": (5,)
+    "lumbar_vertebra": (4,)
 }
 SPLIT_JSON = os.path.join("datalist", "splitting-ctpelvic1k.json")
 # classes to be excluded from TotalSegmentator prediction

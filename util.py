@@ -262,7 +262,7 @@ def rm_empty_dir(root_dir):
         os.rmdir(root_dir)
 
 
-def backup_files(backup_root, src_root='.', white_list=[], black_list=[], ignore_symlink_dir=True, ignore_symlink_file=False):
+def backup_files(backup_root, src_root='.', white_list=[], black_list=[], ignore_symlink=False):
     """Back-up files (e.g. codes) by copying recursively, selecting files based on white & black list.
     Only files match one of the white patterns will be candidates, and will be ignored if
     match any black pattern. I.e. black list is prioritised over white list.
@@ -274,18 +274,16 @@ def backup_files(backup_root, src_root='.', white_list=[], black_list=[], ignore
     backup_files(
         "./logs/1st-run/backup_code",
         white_list=["*.py", "scripts/*.sh"],
-        black_list=["logs/*"],  # to ignore the folder `logs/`
+        black_list=["logs"],
     )
     ```
-    NOTE that to ignore a folder with `black_list`, one MUST writes in `<folder>/*` format.
 
     Input:
         backup_root: root folder to back-up file
-        src_root: str, path to the root folder to search
-        white_list: List[str], file pattern/s to back-up
-        black_list: List[str], file/folder pattern/s to ignore
-        ignore_symlink_dir: bool = True, ignore (i.e. don't back-up & search) symbol link to folder
-        ignore_symlink_file: bool = False, ignore (i.e. don't back-up & search) symbol link to file
+        src_root: str = '.', path to the root folder to search
+        white_list: List[str] = [], file pattern/s to back-up
+        black_list: List[str] = [], file/folder pattern/s to ignore
+        ignore_symlink: bool = False, ignore (i.e. don't back-up & search) symbol link to file/folder
     """
     assert os.path.isdir(src_root), src_root
     assert not os.path.isdir(backup_root), f"* Back-up folder already exists: {backup_root}"
@@ -296,12 +294,24 @@ def backup_files(backup_root, src_root='.', white_list=[], black_list=[], ignore
     src_root = os.path.expanduser(src_root)
     backup_root = os.path.realpath(os.path.expanduser(backup_root))
 
+    # Separate iterms in black_list with explicit `/` or `\` suffix and
+    # let them only apply on folder filtering
+    general_bl, dir_bl = [], []
+    for s in black_list:
+        if s.endswith('/') or s.endswith('\\'):
+            dir_bl.append(s)
+        else:
+            general_bl.append(s)
+
     # rm `./` prefix, or it will cause stupid matching failure like:
     #     fnmatch.fnmatch("./utils/misc.py", "utils/*") # <- got False
     # but works for:
     #     fnmatch.fnmatch("utils/misc.py", "utils/*") # <- got True
+    # Also rm '/' or '\' suffix.
     white_list = [os.path.relpath(s) for s in white_list]
-    black_list = [os.path.relpath(s) for s in black_list]
+    # black_list = [os.path.relpath(s) for s in black_list]
+    general_bl = [os.path.relpath(s) for s in general_bl]
+    dir_bl = [os.path.relpath(s) for s in dir_bl]
 
     def _check(_s, _list):
         """check if `_s` matches any listed pattern"""
@@ -314,23 +324,34 @@ def backup_files(backup_root, src_root='.', white_list=[], black_list=[], ignore
     cwd = os.getcwd() # full path
     os.chdir(src_root)
 
-    for root, dirs, files in os.walk('.'):
-        if '.' != root and _check(os.path.relpath(root), black_list):
-            continue
-        if ignore_symlink_dir and os.path.islink(root):
+    Q = ['.']
+    while len(Q) > 0:
+        fd, Q = os.path.relpath(Q[0]), Q[1:]
+
+        is_link = os.path.islink(fd)
+        if is_link and ignore_symlink:
             continue
 
-        bak_d = os.path.join(backup_root, root)
-        os.makedirs(bak_d, exist_ok=True)
-        for f in files:
-            ff = os.path.join(root, f)
-            if ignore_symlink_file and os.path.islink(ff):
-                continue
-            if _check(ff, white_list) and not _check(ff, black_list):
-                shutil.copy(ff, os.path.join(bak_d, f))
+        _dest = os.path.join(backup_root, fd)
+        if os.path.isfile(fd):
+            if _check(fd, white_list) and not _check(fd, general_bl):
+                os.makedirs(os.path.dirname(_dest), exist_ok=True)
+                if is_link:
+                    os.symlink(os.path.realpath(fd), _dest)
+                else:
+                    shutil.copy(fd, _dest)
+        elif not (
+            _check(fd, general_bl) or _check(os.path.basename(fd), general_bl) or
+            _check(fd, dir_bl) or _check(os.path.basename(fd), dir_bl)
+        ):
+            if is_link:
+                os.makedirs(os.path.dirname(_dest), exist_ok=True)
+                os.symlink(os.path.realpath(fd), _dest, target_is_directory=True)
+            else:
+                Q.extend([os.path.join(fd, x) for x in os.listdir(fd)])
 
     os.chdir(cwd) # return to current working dir on finish
-    rm_empty_dir(backup_root)
+    # rm_empty_dir(backup_root)
 
 
 def gpus_type():
